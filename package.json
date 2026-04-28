@@ -1,0 +1,11 @@
+{
+  "name": "codex-ollama-bridge",
+  "version": "0.2.0",
+  "description": "OpenAI-compatible HTTP proxy that exposes an OpenAI Codex model through Ollama and OpenAI-compatible local endpoints, using OpenClaw's OAuth profile.",
+  "type": "module",
+  "main": "codex-bridge.mjs",
+  "scripts": {
+    "start": "node ./codex-bridge.mjs"
+  },
+  "license": "MIT"
+}
