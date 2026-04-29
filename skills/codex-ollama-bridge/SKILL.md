@@ -1,6 +1,6 @@
 ---
 name: codex-ollama-bridge
-version: 0.2.0
+version: 0.3.0
 description: Operate the local Codex Ollama bridge that exposes openai-codex/gpt-5.4-mini through Ollama and OpenAI-compatible endpoints, using OpenClaw OAuth.
 metadata:
   openclaw:
@@ -21,6 +21,8 @@ Use this skill when the user wants to:
 - Chat with Codex from a terminal via `ollama run codex:latest`
 - Use Codex as the LLM in `memory-lancedb-pro` or any other OpenAI-compatible
   client (`baseURL: http://127.0.0.1:11540/v1`)
+- Quickly install/check the bridge and wire OpenClaw `memory-lancedb-pro`
+  against it
 
 ## Defaults
 
@@ -31,6 +33,27 @@ Use this skill when the user wants to:
   `gpt-5.4-mini`, `openai-codex/gpt-5.4-mini`
 - Auth: OpenClaw `auth-profiles.json`, profile `openai-codex:default`
   (auto-falls-back to any other live `openai-codex:*` profile)
+
+## Fast OpenClaw setup
+
+From the repo root:
+
+```bash
+npm run openclaw:setup
+```
+
+This installs the user systemd service, backs up and merges
+`~/.openclaw/openclaw.json`, enables `memory-lancedb-pro` as the memory slot,
+points the plugin's LLM block at `http://127.0.0.1:11540/v1`, and checks the
+bridge plus Ollama embeddings.
+
+Useful variants:
+
+```bash
+scripts/openclaw-fast-setup.sh check
+scripts/openclaw-fast-setup.sh all --restart-openclaw
+scripts/openclaw-fast-setup.sh check --chat-check
+```
 
 ## Start
 
@@ -81,7 +104,13 @@ apiKey:  any non-empty string (bridge uses local OAuth)
 ## Patch `memory-lancedb-pro` to use this bridge
 
 `memory-lancedb-pro` has a configurable LLM block — no code change needed.
-Edit `~/.openclaw/openclaw.json` and set:
+For the fast path, run:
+
+```bash
+scripts/openclaw-fast-setup.sh configure-memory --restart-openclaw
+```
+
+Manual setup is also simple. Edit `~/.openclaw/openclaw.json` and set:
 
 ```json
 {
