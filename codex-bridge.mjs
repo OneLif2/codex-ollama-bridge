@@ -152,7 +152,10 @@ function buildPayload(messages, requestedModel) {
     .filter(m => m.role !== "system")
     .map(m => ({
       role: m.role === "assistant" ? "assistant" : "user",
-      content: [{ type: "input_text", text: normalizeContent(m.content) }],
+      content: [{
+        type: m.role === "assistant" ? "output_text" : "input_text",
+        text: normalizeContent(m.content),
+      }],
     }));
   const codexModel = String(requestedModel || MODEL)
     .replace(/^openai-codex\//, "")
