@@ -26,7 +26,47 @@ Default endpoint: `http://127.0.0.1:11540`
 
 ---
 
-## 1. Start the bridge
+## 1. Fast OpenClaw setup
+
+For the common OpenClaw + `memory-lancedb-pro` setup, run this from the repo
+root:
+
+```bash
+npm run openclaw:setup
+```
+
+That does four things:
+
+- installs and starts `codex-ollama-bridge` as a user systemd service
+- backs up `~/.openclaw/openclaw.json`
+- enables `memory-lancedb-pro` as OpenClaw's memory slot
+- points the plugin's LLM config at `http://127.0.0.1:11540/v1` and checks
+  the bridge plus Ollama embeddings
+
+Useful fast commands:
+
+```bash
+npm run openclaw:check
+scripts/openclaw-fast-setup.sh configure-memory --restart-openclaw
+scripts/openclaw-fast-setup.sh check --chat-check
+```
+
+The script keeps existing OpenClaw settings where possible. It only fills the
+memory defaults needed for this bridge:
+
+```text
+llm.baseURL:       http://127.0.0.1:11540/v1
+llm.model:         openai-codex/gpt-5.4-mini
+embedding.baseURL: http://localhost:11434/v1
+embedding.model:   nomic-embed-text
+```
+
+If you use a different local embedder, set `MEMORY_EMBED_BASE_URL`,
+`MEMORY_EMBED_MODEL`, or `MEMORY_EMBED_DIMENSIONS` before running the script.
+
+---
+
+## 2. Start the bridge
 
 ### One-off (foreground)
 
@@ -75,7 +115,7 @@ systemctl --user restart codex-ollama-bridge
 
 ---
 
-## 2. Chat from the terminal (Ollama style)
+## 3. Chat from the terminal (Ollama style)
 
 ```bash
 OLLAMA_HOST=http://127.0.0.1:11540 ollama run codex:latest
@@ -97,7 +137,7 @@ OLLAMA_HOST=http://127.0.0.1:11540 ollama run codex:latest "summarize this readm
 
 ---
 
-## 3. Use as an OpenAI endpoint
+## 4. Use as an OpenAI endpoint
 
 Any OpenAI-compatible client just needs a `baseURL` and a non-empty `apiKey`
 (the bridge ignores the key — it uses your local OAuth).
@@ -111,9 +151,15 @@ apiKey:  any-non-empty-string
 ### `memory-lancedb-pro` plugin
 
 `memory-lancedb-pro` already has a configurable OpenAI-compatible LLM hook —
-no code patch needed, just point it at the bridge.
+no code patch needed, just point it at the bridge. The fastest route is:
 
-Edit `~/.openclaw/openclaw.json` and set the plugin's `config.llm` block:
+```bash
+scripts/openclaw-fast-setup.sh configure-memory --restart-openclaw
+```
+
+For manual setup, edit `~/.openclaw/openclaw.json` and set the plugin's
+`config.llm` block:
+
 
 ```json
 {
@@ -180,7 +226,7 @@ curl -N http://127.0.0.1:11540/v1/chat/completions \
 
 ---
 
-## 4. HTTP endpoints
+## 5. HTTP endpoints
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -199,7 +245,7 @@ time, so tokens land in the terminal as they're generated.
 
 ---
 
-## 5. Configuration
+## 6. Configuration
 
 All config is via env vars (no flags, no CLI args):
 
@@ -221,7 +267,7 @@ point `CODEX_BRIDGE_OAUTH_PROFILE` at your live profile directly.
 
 ---
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 **`Error: something went wrong, please see the ollama server logs for details`**
 The Ollama CLI's generic error — usually means an upstream request failed.
