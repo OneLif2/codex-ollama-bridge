@@ -21,7 +21,6 @@ import os from "node:os";
 const PORT  = Number(process.env.CODEX_BRIDGE_PORT || 11540);
 const HOST  = process.env.CODEX_BRIDGE_HOST || "127.0.0.1";
 const MODEL = process.env.CODEX_BRIDGE_MODEL || "openai-codex/gpt-5.4-mini";
-const NVIDIA_BRIDGE_URL = process.env.CODEX_BRIDGE_NVIDIA_URL || "http://127.0.0.1:11545";
 const AUTH_PROFILES = process.env.CODEX_BRIDGE_OAUTH_PATH
   || path.join(os.homedir(), ".openclaw/agents/main/agent/auth-profiles.json");
 const OAUTH_PROFILE = process.env.CODEX_BRIDGE_OAUTH_PROFILE || "openai-codex:default";
@@ -39,18 +38,7 @@ const ALIASES = Array.from(new Set([
   "codex:gpt-5.5",
   "gpt-5.4-mini",
   "gpt-5.5",
-  "gemma4:latest",
-  "gemma4",
-  "google/gemma-4-31b-it",
 ]));
-
-const NVIDIA_ALIASES = new Set([
-  "gemma4:latest",
-  "gemma4",
-  "gemma-4-31b-it",
-  "google/gemma-4-31b-it",
-  "nvidia/gemma-4-31b-it",
-]);
 
 // ── OAuth (read OpenClaw auth-profiles.json, refresh when stale) ──────────────
 
@@ -312,52 +300,15 @@ function resolveModel(name) {
   if (name === "codex:gpt-5.5" || name === "gpt-5.5") return "openai-codex/gpt-5.5";
   return name;
 }
-function isNvidiaModel(name) {
-  return NVIDIA_ALIASES.has(name);
-}
 function ollamaTag(name) {
-  const isNvidia = isNvidiaModel(name);
   return {
     name, model: name,
     modified_at: new Date().toISOString(),
     size: 0,
     digest: `sha256:${Buffer.from(name).toString("hex").padEnd(64, "0").slice(0, 64)}`,
-    details: isNvidia
-      ? { parent_model: "", format: "nvidia-nim", family: "gemma",
-          families: ["gemma"], parameter_size: "31B", quantization_level: "API" }
-      : { parent_model: "", format: "openai-compatible", family: "codex",
-          families: ["codex"], parameter_size: "remote", quantization_level: "none" },
+    details: { parent_model: "", format: "openai-compatible", family: "codex",
+               families: ["codex"], parameter_size: "remote", quantization_level: "none" },
   };
-}
-function proxyToNvidia(req, res, url, body) {
-  const target = new URL(url, NVIDIA_BRIDGE_URL);
-  const payload = JSON.stringify(body || {});
-  const upstream = http.request({
-    hostname: target.hostname,
-    port: target.port || 80,
-    path: target.pathname + target.search,
-    method: req.method,
-    headers: {
-      "Content-Type": "application/json",
-      "Content-Length": Buffer.byteLength(payload),
-    },
-  }, upstreamRes => {
-    res.writeHead(upstreamRes.statusCode || 502, {
-      ...upstreamRes.headers,
-      "Access-Control-Allow-Origin": "*",
-    });
-    upstreamRes.pipe(res);
-  });
-  upstream.on("error", e => {
-    send(res, 502, {
-      error: {
-        message: `NVIDIA bridge is not reachable at ${NVIDIA_BRIDGE_URL}: ${e.message}`,
-        type: "nvidia_bridge_error",
-      },
-    });
-  });
-  upstream.write(payload);
-  upstream.end();
 }
 function ollamaPull(res, name) {
   const tag = ollamaTag(name || MODEL);
@@ -408,7 +359,6 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "POST" && url === "/api/show") {
     const body = await readBody(req).catch(() => ({}));
     const name = body.name || MODEL;
-    if (isNvidiaModel(name)) return proxyToNvidia(req, res, url, body);
     return send(res, 200, {
       ...ollamaTag(name),
       modelfile: `FROM ${name}`, parameters: "", template: "{{ .Prompt }}", model_info: {},
@@ -417,7 +367,6 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "POST" && url === "/api/pull") {
     const body = await readBody(req).catch(() => ({}));
     const name = body.name || body.model || MODEL;
-    if (isNvidiaModel(name)) return proxyToNvidia(req, res, url, body);
     return ollamaPull(res, name);
   }
 
@@ -432,9 +381,6 @@ const server = http.createServer(async (req, res) => {
 
     const requestedModel = body.model || MODEL;
     const model = resolveModel(requestedModel);
-    if (isNvidiaModel(model) || isNvidiaModel(requestedModel)) {
-      return proxyToNvidia(req, res, url, { ...body, model: requestedModel });
-    }
     const messages = isGen
       ? [...(body.system ? [{ role: "system", content: body.system }] : []),
          { role: "user", content: body.prompt || "" }]

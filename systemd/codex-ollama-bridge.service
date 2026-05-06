@@ -7,7 +7,6 @@ Type=simple
 Environment=CODEX_BRIDGE_HOST=127.0.0.1
 Environment=CODEX_BRIDGE_PORT=11540
 Environment=CODEX_BRIDGE_MODEL=openai-codex/gpt-5.4-mini
-Environment=CODEX_BRIDGE_NVIDIA_URL=http://127.0.0.1:11545
 Environment=CODEX_BRIDGE_OAUTH_PROFILE=openai-codex:default
 EnvironmentFile=-%h/.config/codex-ollama-bridge/env
 # Adjust the path below to wherever you cloned this repo.

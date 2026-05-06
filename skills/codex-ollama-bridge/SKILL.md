@@ -14,13 +14,11 @@ metadata:
 
 A single-file local HTTP proxy that re-uses OpenClaw's OAuth profile to talk
 to OpenAI Codex, exposes both **OpenAI** and **Ollama** APIs at
-`http://127.0.0.1:11540`, and can proxy Gemma aliases to
-`nvidia-ollama-bridge`.
+`http://127.0.0.1:11540`.
 
 Use this skill when the user wants to:
 
 - Chat with Codex from a terminal via `ollama run codex:latest`
-- Chat with Gemma from the same terminal entry point via `ollama run gemma4:latest`
 - Use Codex as the LLM in `memory-lancedb-pro` or any other OpenAI-compatible
   client (`baseURL: http://127.0.0.1:11540/v1`)
 - Quickly install/check the bridge and wire OpenClaw `memory-lancedb-pro`
@@ -34,9 +32,6 @@ Use this skill when the user wants to:
 - Codex aliases: `codex:latest`, `codex:gpt-5.4-mini`, `codex:gpt-5.5`,
   `gpt-5.4-mini`, `gpt-5.5`, `openai-codex/gpt-5.4-mini`,
   `openai-codex/gpt-5.5`
-- Gemma aliases proxied to NVIDIA bridge: `gemma4:latest`, `gemma4`,
-  `google/gemma-4-31b-it`
-- NVIDIA bridge URL: `http://127.0.0.1:11545`
 - Auth: OpenClaw `auth-profiles.json`, profile `openai-codex:default`
   (auto-falls-back to any other live `openai-codex:*` profile)
 
@@ -90,7 +85,6 @@ One-shot:
 ```bash
 OLLAMA_HOST=http://127.0.0.1:11540 ollama run codex:latest "say ok"
 OLLAMA_HOST=http://127.0.0.1:11540 ollama run openai-codex/gpt-5.5 "say ok"
-OLLAMA_HOST=http://127.0.0.1:11540 ollama run gemma4:latest "say ok"
 ```
 
 Direct API (bypasses the CLI — useful for debugging):
@@ -160,7 +154,6 @@ Common pitfall: write the model id with a forward slash
 | `CODEX_BRIDGE_HOST` | `127.0.0.1` |
 | `CODEX_BRIDGE_PORT` | `11540` |
 | `CODEX_BRIDGE_MODEL` | `openai-codex/gpt-5.4-mini` |
-| `CODEX_BRIDGE_NVIDIA_URL` | `http://127.0.0.1:11545` |
 | `CODEX_BRIDGE_OAUTH_PATH` | `~/.openclaw/agents/main/agent/auth-profiles.json` |
 | `CODEX_BRIDGE_OAUTH_PROFILE` | `openai-codex:default` |
 
@@ -185,8 +178,6 @@ CODEX_BRIDGE_OAUTH_PROFILE=openai-codex:<your-email>
   `CODEX_BRIDGE_PORT` or `pkill -f codex-bridge.mjs`.
 - **`model_not_found`** — the upstream account doesn't have access to the
   configured model. Set `CODEX_BRIDGE_MODEL` to something the account can use.
-- **`NVIDIA bridge is not reachable`** — Gemma aliases forward to
-  `CODEX_BRIDGE_NVIDIA_URL`; start `nvidia-ollama-bridge` or update that URL.
 
 ---
 

@@ -4,8 +4,6 @@ A single-file local HTTP proxy that exposes an OpenAI Codex model to:
 
 - **Ollama clients** (`ollama run codex:latest`, anything with `OLLAMA_HOST`)
 - **OpenAI-compatible clients** (`memory-lancedb-pro`, OpenAI Python/JS SDK, `curl`)
-- **NVIDIA Gemma via one port** (`ollama run gemma4:latest` through `11540`,
-  proxied to `nvidia-ollama-bridge` on `11545`)
 
 It re-uses the **OpenClaw OAuth profile** you already have — no separate login,
 no API key. The bridge reads
@@ -25,7 +23,6 @@ no API key. The bridge reads
 
 Default model: `openai-codex/gpt-5.4-mini`
 Default endpoint: `http://127.0.0.1:11540`
-Default NVIDIA bridge target: `http://127.0.0.1:11545`
 
 ---
 
@@ -112,7 +109,6 @@ mkdir -p ~/.config/codex-ollama-bridge
 cat > ~/.config/codex-ollama-bridge/env <<'EOF'
 CODEX_BRIDGE_OAUTH_PROFILE=openai-codex:your-account@example.com
 CODEX_BRIDGE_MODEL=openai-codex/gpt-5.4-mini
-CODEX_BRIDGE_NVIDIA_URL=http://127.0.0.1:11545
 EOF
 systemctl --user restart codex-ollama-bridge
 ```
@@ -134,10 +130,7 @@ OLLAMA_HOST=http://127.0.0.1:11540 ollama run codex:latest "say ok"
 OLLAMA_HOST=http://127.0.0.1:11540 ollama run openai-codex/gpt-5.4-mini
 OLLAMA_HOST=http://127.0.0.1:11540 ollama run openai-codex/gpt-5.5
 
-# Gemma through the same 11540 entry point
-OLLAMA_HOST=http://127.0.0.1:11540 ollama run gemma4:latest
-
-# List everything exposed on 11540
+# List Codex aliases exposed on 11540
 OLLAMA_HOST=http://127.0.0.1:11540 ollama list
 ```
 
@@ -152,11 +145,11 @@ by this bridge:
 - `openai-codex/gpt-5.4-mini`
 - `openai-codex/gpt-5.5`
 
-Gemma aliases are advertised on `11540` and proxied to `nvidia-ollama-bridge`:
+Gemma remains isolated in `nvidia-ollama-bridge` on port `11545`:
 
-- `gemma4:latest`
-- `gemma4`
-- `google/gemma-4-31b-it`
+```bash
+OLLAMA_HOST=http://127.0.0.1:11545 ollama run gemma4:latest
+```
 
 ---
 
@@ -278,7 +271,6 @@ All config is via env vars (no flags, no CLI args):
 | `CODEX_BRIDGE_HOST` | `127.0.0.1` | Bind address |
 | `CODEX_BRIDGE_PORT` | `11540` | Bind port |
 | `CODEX_BRIDGE_MODEL` | `openai-codex/gpt-5.4-mini` | Default + advertised model |
-| `CODEX_BRIDGE_NVIDIA_URL` | `http://127.0.0.1:11545` | Target bridge for Gemma/NVIDIA aliases |
 | `CODEX_BRIDGE_OAUTH_PATH` | `~/.openclaw/agents/main/agent/auth-profiles.json` | OpenClaw profile file |
 | `CODEX_BRIDGE_OAUTH_PROFILE` | `openai-codex:default` | Preferred profile key |
 
@@ -320,11 +312,6 @@ codex-bridge.mjs`) or set `CODEX_BRIDGE_PORT` to something free.
 **`model_not_found` from upstream**
 Your account doesn't have access to `gpt-5.4-mini`. Set
 `CODEX_BRIDGE_MODEL=openai-codex/<model-id-you-can-use>`.
-
-**`NVIDIA bridge is not reachable`**
-Gemma aliases on `11540` forward to `CODEX_BRIDGE_NVIDIA_URL`, which defaults
-to `http://127.0.0.1:11545`. Start `nvidia-ollama-bridge` or set
-`CODEX_BRIDGE_NVIDIA_URL` to the correct host and port.
 
 ---
 

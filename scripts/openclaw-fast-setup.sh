@@ -5,7 +5,6 @@ ACTION="all"
 BRIDGE_HOST="${CODEX_BRIDGE_HOST:-127.0.0.1}"
 BRIDGE_PORT="${CODEX_BRIDGE_PORT:-11540}"
 BRIDGE_MODEL="${CODEX_BRIDGE_MODEL:-openai-codex/gpt-5.4-mini}"
-NVIDIA_BRIDGE_URL="${CODEX_BRIDGE_NVIDIA_URL:-http://127.0.0.1:11545}"
 OPENCLAW_CONFIG="${OPENCLAW_CONFIG:-$HOME/.openclaw/openclaw.json}"
 EMBED_BASE_URL="${MEMORY_EMBED_BASE_URL:-http://localhost:11434/v1}"
 EMBED_MODEL="${MEMORY_EMBED_MODEL:-nomic-embed-text}"
@@ -42,7 +41,6 @@ Environment:
   CODEX_BRIDGE_HOST             Default: 127.0.0.1
   CODEX_BRIDGE_PORT             Default: 11540
   CODEX_BRIDGE_MODEL            Default: openai-codex/gpt-5.4-mini
-  CODEX_BRIDGE_NVIDIA_URL       Default: http://127.0.0.1:11545
   OPENCLAW_CONFIG               Default: ~/.openclaw/openclaw.json
   MEMORY_EMBED_BASE_URL         Default: http://localhost:11434/v1
   MEMORY_EMBED_MODEL            Default: nomic-embed-text
@@ -142,7 +140,6 @@ Type=simple
 Environment=CODEX_BRIDGE_HOST=${BRIDGE_HOST}
 Environment=CODEX_BRIDGE_PORT=${BRIDGE_PORT}
 Environment=CODEX_BRIDGE_MODEL=${BRIDGE_MODEL}
-Environment=CODEX_BRIDGE_NVIDIA_URL=${NVIDIA_BRIDGE_URL}
 Environment=CODEX_BRIDGE_OAUTH_PROFILE=openai-codex:default
 EnvironmentFile=-%h/.config/codex-ollama-bridge/env
 ExecStart=${node_bin} ${REPO_ROOT}/codex-bridge.mjs
@@ -271,7 +268,7 @@ check_bridge() {
 
   local ollama_models
   ollama_models="$(curl -fsS "${BRIDGE_URL}/api/tags")" || die "Bridge did not answer /api/tags"
-  printf '%s' "$ollama_models" | json_get "const names=(o.models||[]).map(m=>m.name); if(!names.includes('codex:latest')) process.exit(1); if(!names.includes('gemma4:latest')) process.exit(2); console.log('OK  Ollama aliases: ' + names.join(', '));" || die "Bridge /api/tags does not advertise expected Codex + Gemma aliases"
+  printf '%s' "$ollama_models" | json_get "const names=(o.models||[]).map(m=>m.name); if(!names.includes('codex:latest')) process.exit(1); if(names.some(n=>n.startsWith('gemma4') || n.includes('gemma-4'))) process.exit(2); console.log('OK  Codex Ollama aliases: ' + names.join(', '));" || die "Bridge /api/tags did not advertise the expected Codex-only aliases"
 
   if ((RUN_CHAT_CHECK)); then
     log "Running optional bridge chat check"
