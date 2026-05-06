@@ -5,10 +5,19 @@ ACTION="all"
 BRIDGE_HOST="${CODEX_BRIDGE_HOST:-127.0.0.1}"
 BRIDGE_PORT="${CODEX_BRIDGE_PORT:-11540}"
 BRIDGE_MODEL="${CODEX_BRIDGE_MODEL:-openai-codex/gpt-5.4-mini}"
+NVIDIA_BRIDGE_URL="${CODEX_BRIDGE_NVIDIA_URL:-http://127.0.0.1:11545}"
 OPENCLAW_CONFIG="${OPENCLAW_CONFIG:-$HOME/.openclaw/openclaw.json}"
 EMBED_BASE_URL="${MEMORY_EMBED_BASE_URL:-http://localhost:11434/v1}"
 EMBED_MODEL="${MEMORY_EMBED_MODEL:-nomic-embed-text}"
 EMBED_DIMENSIONS="${MEMORY_EMBED_DIMENSIONS:-768}"
+EMBED_API_KEY="${MEMORY_EMBED_API_KEY:-ollama}"
+EMBED_TASK_QUERY="${MEMORY_EMBED_TASK_QUERY:-}"
+EMBED_TASK_PASSAGE="${MEMORY_EMBED_TASK_PASSAGE:-}"
+EMBED_NORMALIZED="${MEMORY_EMBED_NORMALIZED:-}"
+RERANK_API_KEY="${MEMORY_RERANK_API_KEY:-}"
+RERANK_PROVIDER="${MEMORY_RERANK_PROVIDER:-jina}"
+RERANK_MODEL="${MEMORY_RERANK_MODEL:-jina-reranker-v3}"
+RERANK_ENDPOINT="${MEMORY_RERANK_ENDPOINT:-https://api.jina.ai/v1/rerank}"
 RESTART_OPENCLAW=0
 RUN_CHAT_CHECK=0
 
@@ -33,10 +42,30 @@ Environment:
   CODEX_BRIDGE_HOST             Default: 127.0.0.1
   CODEX_BRIDGE_PORT             Default: 11540
   CODEX_BRIDGE_MODEL            Default: openai-codex/gpt-5.4-mini
+  CODEX_BRIDGE_NVIDIA_URL       Default: http://127.0.0.1:11545
   OPENCLAW_CONFIG               Default: ~/.openclaw/openclaw.json
   MEMORY_EMBED_BASE_URL         Default: http://localhost:11434/v1
   MEMORY_EMBED_MODEL            Default: nomic-embed-text
   MEMORY_EMBED_DIMENSIONS       Default: 768
+  MEMORY_EMBED_API_KEY          Default: ollama  (set to Jina key for Plan A)
+  MEMORY_EMBED_TASK_QUERY       Default: (unset) (set to retrieval.query for Jina v5)
+  MEMORY_EMBED_TASK_PASSAGE     Default: (unset) (set to retrieval.passage for Jina v5)
+  MEMORY_EMBED_NORMALIZED       Default: (unset) (set to true for Jina v5)
+  MEMORY_RERANK_API_KEY         Default: (unset) (set to enable cross-encoder reranking)
+  MEMORY_RERANK_PROVIDER        Default: jina
+  MEMORY_RERANK_MODEL           Default: jina-reranker-v3
+  MEMORY_RERANK_ENDPOINT        Default: https://api.jina.ai/v1/rerank
+
+Plan A (Jina embedding + reranker + codex bridge LLM):
+  MEMORY_EMBED_BASE_URL=https://api.jina.ai/v1 \
+  MEMORY_EMBED_MODEL=jina-embeddings-v5-text-small \
+  MEMORY_EMBED_DIMENSIONS=1024 \
+  MEMORY_EMBED_API_KEY=<JINA_API_KEY> \
+  MEMORY_EMBED_TASK_QUERY=retrieval.query \
+  MEMORY_EMBED_TASK_PASSAGE=retrieval.passage \
+  MEMORY_EMBED_NORMALIZED=true \
+  MEMORY_RERANK_API_KEY=<JINA_API_KEY> \
+  scripts/openclaw-fast-setup.sh configure-memory --restart-openclaw
 
 Examples:
   scripts/openclaw-fast-setup.sh all --restart-openclaw
@@ -113,6 +142,7 @@ Type=simple
 Environment=CODEX_BRIDGE_HOST=${BRIDGE_HOST}
 Environment=CODEX_BRIDGE_PORT=${BRIDGE_PORT}
 Environment=CODEX_BRIDGE_MODEL=${BRIDGE_MODEL}
+Environment=CODEX_BRIDGE_NVIDIA_URL=${NVIDIA_BRIDGE_URL}
 Environment=CODEX_BRIDGE_OAUTH_PROFILE=openai-codex:default
 EnvironmentFile=-%h/.config/codex-ollama-bridge/env
 ExecStart=${node_bin} ${REPO_ROOT}/codex-bridge.mjs
@@ -142,6 +172,14 @@ configure_memory() {
   EMBED_BASE_URL="$EMBED_BASE_URL" \
   EMBED_MODEL="$EMBED_MODEL" \
   EMBED_DIMENSIONS="$EMBED_DIMENSIONS" \
+  EMBED_API_KEY="$EMBED_API_KEY" \
+  EMBED_TASK_QUERY="$EMBED_TASK_QUERY" \
+  EMBED_TASK_PASSAGE="$EMBED_TASK_PASSAGE" \
+  EMBED_NORMALIZED="$EMBED_NORMALIZED" \
+  RERANK_API_KEY="$RERANK_API_KEY" \
+  RERANK_PROVIDER="$RERANK_PROVIDER" \
+  RERANK_MODEL="$RERANK_MODEL" \
+  RERANK_ENDPOINT="$RERANK_ENDPOINT" \
   node <<'NODE'
 const fs = require("fs");
 
@@ -178,13 +216,37 @@ entry.config.llm = {
   baseURL: process.env.BRIDGE_BASE_URL
 };
 
-entry.config.embedding = {
+const embedBase = {
   baseURL: process.env.EMBED_BASE_URL,
   model: process.env.EMBED_MODEL,
-  apiKey: "ollama",
+  apiKey: process.env.EMBED_API_KEY || "ollama",
   dimensions: Number(process.env.EMBED_DIMENSIONS || 768),
+};
+if (process.env.EMBED_TASK_QUERY)   embedBase.taskQuery   = process.env.EMBED_TASK_QUERY;
+if (process.env.EMBED_TASK_PASSAGE) embedBase.taskPassage = process.env.EMBED_TASK_PASSAGE;
+if (process.env.EMBED_NORMALIZED)   embedBase.normalized  = process.env.EMBED_NORMALIZED === "true";
+entry.config.embedding = {
+  ...embedBase,
   ...(entry.config.embedding && typeof entry.config.embedding === "object" ? entry.config.embedding : {})
 };
+
+if (process.env.RERANK_API_KEY) {
+  entry.config.retrieval = {
+    mode: "hybrid",
+    vectorWeight: 0.7,
+    bm25Weight: 0.3,
+    rerank: "cross-encoder",
+    rerankProvider: process.env.RERANK_PROVIDER || "jina",
+    rerankModel: process.env.RERANK_MODEL || "jina-reranker-v3",
+    rerankEndpoint: process.env.RERANK_ENDPOINT || "https://api.jina.ai/v1/rerank",
+    rerankApiKey: process.env.RERANK_API_KEY,
+    candidatePoolSize: 12,
+    minScore: 0.6,
+    hardMinScore: 0.62,
+    filterNoise: true,
+    ...(entry.config.retrieval && typeof entry.config.retrieval === "object" ? entry.config.retrieval : {})
+  };
+}
 
 if (entry.config.autoCapture === undefined) entry.config.autoCapture = true;
 if (entry.config.autoRecall === undefined) entry.config.autoRecall = true;
@@ -206,6 +268,10 @@ check_bridge() {
   local models
   models="$(curl -fsS "${BRIDGE_URL}/v1/models")" || die "Bridge did not answer /v1/models"
   printf '%s' "$models" | json_get "if(!o.data || !o.data.length) process.exit(1); console.log('OK  bridge models: ' + o.data.map(m=>m.id).join(', '));" || die "Bridge returned unexpected /v1/models JSON"
+
+  local ollama_models
+  ollama_models="$(curl -fsS "${BRIDGE_URL}/api/tags")" || die "Bridge did not answer /api/tags"
+  printf '%s' "$ollama_models" | json_get "const names=(o.models||[]).map(m=>m.name); if(!names.includes('codex:latest')) process.exit(1); if(!names.includes('gemma4:latest')) process.exit(2); console.log('OK  Ollama aliases: ' + names.join(', '));" || die "Bridge /api/tags does not advertise expected Codex + Gemma aliases"
 
   if ((RUN_CHAT_CHECK)); then
     log "Running optional bridge chat check"
